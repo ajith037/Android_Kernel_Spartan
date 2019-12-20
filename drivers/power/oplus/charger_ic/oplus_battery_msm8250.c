@@ -8708,6 +8708,7 @@ irqreturn_t wdog_snarl_irq_handler(int irq, void *data)
 
 	if (chg->step_chg_enabled)
 		power_supply_changed(chg->batt_psy);
+	power_supply_changed(chg->batt_psy);
 
 	return IRQ_HANDLED;
 }
