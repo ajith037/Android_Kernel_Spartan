@@ -29,5 +29,11 @@ cd anykernel || exit 1
     cd ..
 }
 
+remove() {
+cd out/arch/arm64/boot
+rm Image dtbo.img dtb
+}
+
 compile
 zipping
+remove
