@@ -1975,7 +1975,7 @@ static bool msm_geni_find_wakeup_byte(struct uart_port *uport, int size)
 		atomic_set(&port->check_wakeup_byte, 0);
 		return true;
 	}
-	dump_ipc(port->ipc_log_rx, "Dropped Rx", buf, 0, size);
+	dump_ipc(uport, port->ipc_log_rx, "Dropped Rx", buf, 0, size);
 	return false;
 }
 
@@ -2071,7 +2071,7 @@ static int msm_geni_serial_handle_dma_rx(struct uart_port *uport, bool drop_rx)
 	}
 	uport->icount.rx += ret;
 	tty_flip_buffer_push(tport);
-	dump_ipc(msm_port->ipc_log_rx, "DMA Rx",
+	dump_ipc(uport, msm_port->ipc_log_rx, "DMA Rx",
 		 (char *)msm_port->rx_buf, 0, rx_bytes);
 
 	/*
