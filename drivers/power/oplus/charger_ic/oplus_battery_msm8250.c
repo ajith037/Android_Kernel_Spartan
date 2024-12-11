@@ -6152,7 +6152,7 @@ int smblib_set_prop_pd_active(struct smb_charger *chg,
         }
     }
 #endif
-
+	power_supply_changed(chg->usb_psy);
 	return rc;
 }
 
@@ -14193,13 +14193,23 @@ static int smb5_configure_typec(struct smb_charger *chg)
 
 	smblib_apsd_enable(chg, true);
 
-	rc = smblib_masked_write(chg, TYPE_C_CFG_REG,
-				BC1P2_START_ON_CC_BIT, 0);
+	rc = smblib_read(chg, TYPE_C_SNK_STATUS_REG, &val);
 	if (rc < 0) {
-		dev_err(chg->dev, "failed to write TYPE_C_CFG_REG rc=%d\n",
+		dev_err(chg->dev, "failed to read TYPE_C_SNK_STATUS_REG rc=%d\n",
 				rc);
 
 		return rc;
+	}
+
+	if (!(val & SNK_DAM_MASK)) {
+		rc = smblib_masked_write(chg, TYPE_C_CFG_REG,
+					BC1P2_START_ON_CC_BIT, 0);
+		if (rc < 0) {
+			dev_err(chg->dev, "failed to write TYPE_C_CFG_REG rc=%d\n",
+					rc);
+
+			return rc;
+		}
 	}
 
 	/* Use simple write to clear interrupts */
