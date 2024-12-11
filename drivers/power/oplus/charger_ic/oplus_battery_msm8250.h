@@ -13,8 +13,8 @@
 #include <linux/regulator/driver.h>
 #include <linux/regulator/consumer.h>
 #include <linux/extcon-provider.h>
-#include "../../../../drivers/power/supply/qcom/storm-watch.h"
-#include "../../../../drivers/power/supply/qcom/battery.h"
+#include "../../../../kernel/msm-4.19/drivers/power/supply/qcom/storm-watch.h"
+#include "../../../../kernel/msm-4.19/drivers/power/supply/qcom/battery.h"
 
 #ifdef OPLUS_FEATURE_CHG_BASIC
 #include <linux/time.h>
@@ -490,7 +490,6 @@ struct smb_charger {
 	struct votable		*limited_irq_disable_votable;
 	struct votable		*hdc_irq_disable_votable;
 	struct votable		*temp_change_irq_disable_votable;
-	struct votable		*qnovo_disable_votable;
 
 	/* work */
 	struct work_struct	bms_update_work;
