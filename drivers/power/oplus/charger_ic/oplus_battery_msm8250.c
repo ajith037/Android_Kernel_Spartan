@@ -12266,7 +12266,8 @@ static int smb5_parse_dt_misc(struct smb5 *chip, struct device_node *node)
 	chg->pd_not_supported = chg->pd_not_supported ||
 			of_property_read_bool(node, "qcom,usb-pd-disable");
 
-	chg->lpd_disabled = of_property_read_bool(node, "qcom,lpd-disable");
+	chg->lpd_disabled = chg->lpd_disabled ||
+			of_property_read_bool(node, "qcom,lpd-disable");
 
 	rc = of_property_read_u32(node, "qcom,wd-bark-time-secs",
 					&chip->dt.wd_bark_time);
@@ -12732,12 +12733,7 @@ void oplus_set_otg_switch_status(bool value)
 		}
 	}
 
-	chip->otg_switch = !!value;
-	if (value) {
-		oplus_ccdetect_enable();
-	} else {
-		oplus_ccdetect_disable();
-	}
+	oplus_ccdetect_enable();
 	printk(KERN_ERR "[OPLUS_CHG][%s]: otg_switch=%d, otg_online=%d\n",
 			__func__, chip->otg_switch, chip->otg_online);
 }
@@ -13667,6 +13663,10 @@ static enum power_supply_property smb5_batt_props[] = {
 	POWER_SUPPLY_PROP_RECHARGE_SOC,
 	POWER_SUPPLY_PROP_CHARGE_FULL,
 	POWER_SUPPLY_PROP_FORCE_RECHARGE,
+	POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN,
+#ifndef OPLUS_FEATURE_CHG_BASIC
+	POWER_SUPPLY_PROP_TIME_TO_FULL_NOW,
+#endif
 	POWER_SUPPLY_PROP_FCC_STEPPER_ENABLE,
 #ifdef OPLUS_FEATURE_CHG_BASIC
 	POWER_SUPPLY_PROP_VOLTAGE_MIN,
@@ -13838,13 +13838,20 @@ static int smb5_batt_get_prop(struct power_supply *psy,
 				!get_effective_result(
 					chg->qnovo_disable_votable);
 		break;
-	case POWER_SUPPLY_PROP_CHARGE_FULL:
-		rc = smblib_get_prop_from_bms(chg,
-				POWER_SUPPLY_PROP_CHARGE_FULL, val);
-		break;
 	case POWER_SUPPLY_PROP_FORCE_RECHARGE:
 		val->intval = 0;
 		break;
+	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
+		if (g_oplus_chip) {
+			val->intval = g_oplus_chip->batt_capacity_mah * 1000;
+		}
+		break;
+#ifndef OPLUS_FEATURE_CHG_BASIC
+	case POWER_SUPPLY_PROP_TIME_TO_FULL_NOW:
+		rc = smblib_get_prop_from_bms(chg,
+				POWER_SUPPLY_PROP_TIME_TO_FULL_NOW, val);
+		break;
+#endif
 	case POWER_SUPPLY_PROP_FCC_STEPPER_ENABLE:
 		val->intval = chg->fcc_stepper_enable;
 		break;
@@ -15789,12 +15796,15 @@ static void smbchg_usbin_collapse_irq_enable(bool enable)
 {
 	static bool collapse_en = true;
 	struct oplus_chg_chip *chip = g_oplus_chip;
+	struct irq_data *irq_data = NULL;
 
-	if (enable && !collapse_en){
-		enable_irq(chip->pmic_spmi.smb5_chip->chg.irq_info[USBIN_COLLAPSE_IRQ].irq);
-	}else if (!enable && collapse_en){
+
+	if (enable && !collapse_en) {
+		irq_data = irq_get_irq_data(chip->pmic_spmi.smb5_chip->chg.irq_info[USBIN_COLLAPSE_IRQ].irq);
+		if (irq_data && irqd_irq_disabled(irq_data))
+			enable_irq(chip->pmic_spmi.smb5_chip->chg.irq_info[USBIN_COLLAPSE_IRQ].irq);
+	} else if (!enable && collapse_en)
 		disable_irq(chip->pmic_spmi.smb5_chip->chg.irq_info[USBIN_COLLAPSE_IRQ].irq);
-	}
 	collapse_en = enable;
 }
 
