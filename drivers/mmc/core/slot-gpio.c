@@ -2,6 +2,7 @@
  * Generic GPIO card-detect helper
  *
  * Copyright (C) 2011, Guennadi Liakhovetski <g.liakhovetski@gmx.de>
+ * Copyright (C) 2020 Oplus. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -43,9 +44,9 @@ static irqreturn_t mmc_gpio_cd_irqt(int irq, void *dev_id)
 		mmc_hostname(host), present, present?"INSERT":"REMOVAL");
 
 	host->trigger_card_event = true;
-#ifdef CONFIG_EMMC_SDCARD_OPTIMIZE
+#ifdef OPLUS_FEATURE_EMMC_SDCARD_OPTIMIZE
         host->detect_change_retry = 5;
-#endif /* CONFIG_EMMC_SDCARD_OPTIMIZE */
+#endif /* OPLUS_FEATURE_EMMC_SDCARD_OPTIMIZE */
 	mmc_detect_change(host, msecs_to_jiffies(ctx->cd_debounce_delay_ms));
 
 	return IRQ_HANDLED;

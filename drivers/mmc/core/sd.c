@@ -4,6 +4,7 @@
  *  Copyright (C) 2003-2004 Russell King, All Rights Reserved.
  *  SD support Copyright (C) 2004 Ian Molton, All Rights Reserved.
  *  Copyright (C) 2005-2007 Pierre Ossman, All Rights Reserved.
+ *  Copyright (C) 2020 Oplus. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -28,7 +29,7 @@
 #include "mmc_ops.h"
 #include "sd.h"
 #include "sd_ops.h"
-#ifdef CONFIG_EMMC_SDCARD_OPTIMIZE
+#ifdef OPLUS_FEATURE_EMMC_SDCARD_OPTIMIZE
 struct menfinfo {
 	unsigned int manfid;
 	char *manfstring;
@@ -65,7 +66,7 @@ struct card_blk_data {
 #define STR_SPEED_UHS	"ultra high speed "
 #define STR_SPEED_HS	"high speed "
 
-#endif /* CONFIG_EMMC_SDCARD_OPTIMIZE */
+#endif /* OPLUS_FEATURE_EMMC_SDCARD_OPTIMIZE */
 
 static const unsigned int tran_exp[] = {
 	10000,		100000,		1000000,	10000000,
@@ -132,6 +133,9 @@ void mmc_decode_cid(struct mmc_card *card)
 	card->cid.month			= UNSTUFF_BITS(resp, 8, 4);
 
 	card->cid.year += 2000; /* SD cards year offset */
+#ifdef OPLUS_FEATURE_EMMC_SDCARD_OPTIMIZE
+	pr_info("name:%s,manfid:%x,oemid:%x\n", card->cid.prod_name, card->cid.manfid, card->cid.oemid);
+#endif
 
 }
 
@@ -177,9 +181,6 @@ static int mmc_decode_csd(struct mmc_card *card)
 			csd->erase_size = UNSTUFF_BITS(resp, 39, 7) + 1;
 			csd->erase_size <<= csd->write_blkbits - 9;
 		}
-
-		if (UNSTUFF_BITS(resp, 13, 1))
-			mmc_card_set_readonly(card);
 		break;
 	case 1:
 		/*
@@ -214,9 +215,6 @@ static int mmc_decode_csd(struct mmc_card *card)
 		csd->write_blkbits = 9;
 		csd->write_partial = 0;
 		csd->erase_size = 1;
-
-		if (UNSTUFF_BITS(resp, 13, 1))
-			mmc_card_set_readonly(card);
 		break;
 	default:
 		pr_err("%s: unrecognised CSD structure version %d\n",
@@ -313,9 +311,9 @@ static int mmc_read_ssr(struct mmc_card *card)
 			card->ssr.au = sd_au_size[au];
 			es = UNSTUFF_BITS(card->raw_ssr, 408 - 384, 16);
 			et = UNSTUFF_BITS(card->raw_ssr, 402 - 384, 6);
-#ifdef CONFIG_EMMC_SDCARD_OPTIMIZE
+#ifdef OPLUS_FEATURE_EMMC_SDCARD_OPTIMIZE
 			card->ssr.speed_class = UNSTUFF_BITS(card->raw_ssr, 440 - 384, 8);
-#endif /* CONFIG_EMMC_SDCARD_OPTIMIZE */
+#endif /* OPLUS_FEATURE_EMMC_SDCARD_OPTIMIZE */
 			if (es && et) {
 				eo = UNSTUFF_BITS(card->raw_ssr, 400 - 384, 2);
 				card->ssr.erase_timeout = (et * 1000) / es;
@@ -798,7 +796,7 @@ out:
 	return err;
 }
 
-#ifdef CONFIG_EMMC_SDCARD_OPTIMIZE
+#ifdef OPLUS_FEATURE_EMMC_SDCARD_OPTIMIZE
 const char *manfinfo_string(struct mmc_card *card) {
 	int i = 0;
 	for (i = 0; i < MANFINFS_SIZE ; i++) {
@@ -836,7 +834,7 @@ const char *speed_class_string(struct mmc_card *card){
 
 MMC_DEV_ATTR(devinfo, " manufacturer: %s\n size: %s\n type: %s\n speed: %s\n class: %s\n",
 	manfinfo_string(card), capacity_string(card), type_string(card), uhs_string(card), speed_class_string(card));
-#endif /* CONFIG_EMMC_SDCARD_OPTIMIZE */
+#endif /* OPLUS_FEATURE_EMMC_SDCARD_OPTIMIZE */
 MMC_DEV_ATTR(cid, "%08x%08x%08x%08x\n", card->raw_cid[0], card->raw_cid[1],
 	card->raw_cid[2], card->raw_cid[3]);
 MMC_DEV_ATTR(csd, "%08x%08x%08x%08x\n", card->raw_csd[0], card->raw_csd[1],
@@ -880,9 +878,9 @@ static ssize_t mmc_dsr_show(struct device *dev,
 static DEVICE_ATTR(dsr, S_IRUGO, mmc_dsr_show, NULL);
 
 static struct attribute *sd_std_attrs[] = {
-#ifdef CONFIG_EMMC_SDCARD_OPTIMIZE
+#ifdef OPLUS_FEATURE_EMMC_SDCARD_OPTIMIZE
 	&dev_attr_devinfo.attr,
-#endif /* CONFIG_EMMC_SDCARD_OPTIMIZE */
+#endif /* OPLUS_FEATURE_EMMC_SDCARD_OPTIMIZE */
 	&dev_attr_cid.attr,
 	&dev_attr_csd.attr,
 	&dev_attr_scr.attr,
@@ -962,14 +960,11 @@ try_again:
 		return err;
 
 	/*
-	 * In case the S18A bit is set in the response, let's start the signal
-	 * voltage switch procedure. SPI mode doesn't support CMD11.
-	 * Note that, according to the spec, the S18A bit is not valid unless
-	 * the CCS bit is set as well. We deliberately deviate from the spec in
-	 * regards to this, which allows UHS-I to be supported for SDSC cards.
+	 * In case CCS and S18A in the response is set, start Signal Voltage
+	 * Switch procedure. SPI mode doesn't support CMD11.
 	 */
-	if (!mmc_host_is_spi(host) && (ocr & SD_OCR_S18R) &&
-	    rocr && (*rocr & SD_ROCR_S18A)) {
+	if (!mmc_host_is_spi(host) && rocr &&
+	   ((*rocr & 0x41000000) == 0x41000000)) {
 		err = mmc_set_uhs_voltage(host, pocr);
 		if (err == -EAGAIN) {
 			retries--;
@@ -1573,18 +1568,17 @@ int mmc_attach_sd(struct mmc_host *host)
 {
 	int err;
 	u32 ocr, rocr;
-
-#ifdef CONFIG_EMMC_SDCARD_OPTIMIZE
+#ifdef OPLUS_FEATURE_EMMC_SDCARD_OPTIMIZE
 	int retries;
 #endif
 	WARN_ON(!host->claimed);
 
-#ifdef CONFIG_EMMC_SDCARD_OPTIMIZE
+#ifdef OPLUS_FEATURE_EMMC_SDCARD_OPTIMIZE
 	if (!host->detect_change_retry) {
         pr_err("%s have init error 5 times\n", __func__);
         return -ETIMEDOUT;
     }
-#endif /* CONFIG_EMMC_SDCARD_OPTIMIZE */
+#endif /* OPLUS_FEATURE_EMMC_SDCARD_OPTIMIZE */
 	err = mmc_send_app_op_cond(host, 0, &ocr);
 	if (err)
 		return err;
@@ -1623,12 +1617,14 @@ int mmc_attach_sd(struct mmc_host *host)
 	/*
 	 * Detect and init the card.
 	 */
-#ifdef CONFIG_EMMC_SDCARD_OPTIMIZE
-    if (host->detect_change_retry < 5)
+#ifndef OPLUS_FEATURE_EMMC_SDCARD_OPTIMIZE
+    retries = 5;
+#else /* OPLUS_FEATURE_EMMC_SDCARD_OPTIMIZE */
+    if (host->detect_change_retry < 5) 
         retries = 1;
     else
         retries = 5;
-#endif /* CONFIG_EMMC_SDCARD_OPTIMIZE */
+#endif /* OPLUS_FEATURE_EMMC_SDCARD_OPTIMIZE */
 	err = mmc_sd_init_card(host, rocr, NULL);
 	if (err)
 		goto err;
@@ -1646,10 +1642,9 @@ int mmc_attach_sd(struct mmc_host *host)
 		goto remove_card;
 	}
 
-#ifdef CONFIG_EMMC_SDCARD_OPTIMIZE
-/* Add for retry 5 times when new sdcard init error */
+#ifdef OPLUS_FEATURE_EMMC_SDCARD_OPTIMIZE
     host->detect_change_retry = 5;
-#endif /* CONFIG_EMMC_SDCARD_OPTIMIZE */
+#endif /* OPLUS_FEATURE_EMMC_SDCARD_OPTIMIZE */
 	return 0;
 
 remove_card:
@@ -1659,11 +1654,11 @@ remove_card:
 err:
 	mmc_detach_bus(host);
 
-#ifdef CONFIG_EMMC_SDCARD_OPTIMIZE
+#ifdef OPLUS_FEATURE_EMMC_SDCARD_OPTIMIZE
         if (err)
     host->detect_change_retry--;
     pr_err("detect_change_retry = %d !!!,err = %d\n", host->detect_change_retry,err);
-#endif /* CONFIG_EMMC_SDCARD_OPTIMIZE */
+#endif /* OPLUS_FEATURE_EMMC_SDCARD_OPTIMIZE */
 	pr_err("%s: error %d whilst initialising SD card\n",
 		mmc_hostname(host), err);
 

@@ -447,12 +447,19 @@ void mmc_add_host_debugfs(struct mmc_host *host)
 
 	if (!debugfs_create_file("ios", 0400, root, host, &mmc_ios_fops))
 		goto err_node;
+#ifdef OPLUS_FEATURE_EMMC_DRIVER
+	if (!debugfs_create_x32("caps", 0600, root, &host->caps))
+		goto err_node;
 
+	if (!debugfs_create_x32("caps2", 0600, root, &host->caps2))
+		goto err_node;
+#else
 	if (!debugfs_create_x32("caps", 0400, root, &host->caps))
 		goto err_node;
 
 	if (!debugfs_create_x32("caps2", 0400, root, &host->caps2))
 		goto err_node;
+#endif
 
 	if (!debugfs_create_file("clock", 0600, root, host,
 			&mmc_clock_fops))
